@@ -75,7 +75,7 @@ Every command waits for the device to confirm the new state and raises `Confirma
 
 ### The newer hubs
 
-On the Stereo Hub HT and the Surround Hub (module `LS10`, see `async_query_lssdp`), port 7777 is wrapped in mutual TLS. Either pass `media=False` to use port 50006 alone, or pass `media_ssl`, an `ssl.SSLContext` carrying a client certificate the hub accepts, and the client works as it does on the original hub. The library bundles no certificate, reads no file and builds no context. Loading a certificate with `load_cert_chain` is blocking I/O, so in Home Assistant build the context in the executor. See [docs/protocol-media.md](docs/protocol-media.md#tls-on-the-newer-hubs).
+On the Surround Hub, port 7777 is wrapped in mutual TLS. The Stereo Hub HT is built on the same module (`LS10`, see `async_query_lssdp`) and resets a plaintext registration the same way, so it very likely is too, but nobody has run a handshake against one yet. Either pass `media=False` to use port 50006 alone, or pass `media_ssl`, an `ssl.SSLContext` carrying a client certificate the hub accepts, and the client works as it does on the original hub. The library bundles no certificate, reads no file and builds no context. Loading a certificate with `load_cert_chain` is blocking I/O, so in Home Assistant build the context in the executor. See [docs/protocol-media.md](docs/protocol-media.md#tls-on-the-newer-hubs).
 
 ## Things that will surprise you
 

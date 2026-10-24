@@ -24,7 +24,7 @@ The port stays up when the hub looks "off" (network standby), and the registrati
 
 ### TLS on the newer hubs
 
-On the hubs built around Libre's `LS10` module, the Stereo Hub HT and the Surround Hub, port 7777 is wrapped in TLS 1.2 with mutual authentication: the hub presents a certificate and requires one from the client. `async_query_lssdp` tells the module before anything touches 7777. Port 50006 stays plain TCP on these hubs.
+On the Surround Hub, built around Libre's `LS10` module, port 7777 is wrapped in TLS 1.2 with mutual authentication: the hub presents a certificate and requires one from the client (`tested`). The Stereo Hub HT is `LS10` too and resets a plaintext REGISTER at once, which fits, but no handshake has been tried on one. `async_query_lssdp` tells the module before anything touches 7777. Port 50006 stays plain TCP on these hubs.
 
 Inside the tunnel nothing changes (`tested` on a Surround Hub). The frames, the byte order and the registration with the client's own address are the ones described below, and registration, volume read and set, transport and now-playing metadata all worked through it unchanged. The hub's certificate is not issued for its IP address, so a client that verifies it has to leave host-name checking off.
 
