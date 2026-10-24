@@ -41,6 +41,7 @@ from .const import (
     PRESET_MIN,
     PRESET_SET_PREFIX,
     PRESET_SET_SUFFIX,
+    ROOM_GROUP,
 )
 from .frames import build_control
 from .state import PlayState, Source
@@ -51,6 +52,8 @@ QUERY_AV = build_control(CLASS_SYSTEM, OP_AV_GET)
 QUERY_MANUAL_EQ = build_control(CLASS_EQ, OP_EQ_GET_REPORT)
 QUERY_EQ_PRESET = build_control(CLASS_PRESET, OP_PRESET_GET_REPORT, b"\x00")
 QUERY_ROOM_CORRECTION = build_control(CLASS_ROOM, OP_ROOM_GET)
+#: The LS10 form, the one the vendor app sends: see `ROOM_GROUP`.
+QUERY_ROOM_CORRECTION_GROUP = build_control(CLASS_ROOM, OP_ROOM_GET, bytes([ROOM_GROUP]))
 
 #: What to ask on connect. The device answers queries — the earlier spec was
 #: wrong about that — so state is read, never inferred by firing commands.
@@ -90,8 +93,14 @@ def select_source(index: int) -> bytes:
     return build_control(CLASS_SYSTEM, OP_SOURCE_SET, bytes([index]))
 
 
-def set_room_correction(enabled: bool) -> bytes:
-    return build_control(CLASS_ROOM, OP_ROOM_SET, bytes([int(enabled)]))
+def set_room_correction(enabled: bool, *, grouped: bool = False) -> bytes:
+    """`07 01 <state>`, or with `grouped`, the LS10 form `07 01 01 <state>`.
+
+    The grouped form is the vendor app's on a Surround Hub. Nobody has seen the
+    app set it on a Stereo Hub HT, whose report has the same address byte.
+    """
+    data = bytes([ROOM_GROUP, int(enabled)]) if grouped else bytes([int(enabled)])
+    return build_control(CLASS_ROOM, OP_ROOM_SET, data)
 
 
 def set_manual_eq(enabled: bool) -> bytes:
@@ -198,6 +207,14 @@ def decode(frame: bytes) -> dict[str, Any] | None:
     elif cls == CLASS_ROOM:
         if opcode == OP_ROOM_REPORT and len(data) == 1:
             return {"room_correction": bool(data[0])}
+        if opcode == OP_ROOM_REPORT and len(data) in (2, 3):
+            # The LS10 form, `<address> <state>` with a trailing `00` on the
+            # Surround Hub: see ROOM_GROUP. A report for any other address is
+            # the Surround Hub answering the bare `07 02`, with `00`, and what
+            # its state byte means there nobody knows, so it sets nothing.
+            if data[0] == ROOM_GROUP:
+                return {"room_correction": bool(data[1])}
+            return {}
     elif cls == CLASS_PRESET:
         if opcode == OP_PRESET_GET_REPORT and len(data) == 6:
             return {"eq_preset": data[2]}

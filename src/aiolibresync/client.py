@@ -20,6 +20,7 @@ from .connection import Connection, cancel_and_wait
 from .const import (
     CONFIRM_TIMEOUT,
     CONTROL_PORT,
+    GROUP_MODULES,
     MEDIA_PORT,
     POLL_INTERVAL,
     RECONNECT_BASE,
@@ -81,6 +82,11 @@ class LibreSyncClient:
     present, and whether to verify the hub's, is the caller's. Building one
     is blocking I/O (`load_cert_chain` reads the files), so in Home Assistant
     it belongs in the executor, not on the event loop.
+
+    `module` is the Libre module LSSDP reports (`async_query_lssdp`). On
+    `LS10` room correction is set and read in that module's addressed form;
+    reading the report needs nothing, since its width tells the two forms
+    apart.
     """
 
     def __init__(
@@ -95,6 +101,7 @@ class LibreSyncClient:
         poll_interval: float = POLL_INTERVAL,
         media: bool = True,
         media_ssl: ssl.SSLContext | None = None,
+        module: str | None = None,
     ) -> None:
         if media_ssl is not None and not media:
             # Two answers to the same hub, and silently preferring either one
@@ -102,6 +109,21 @@ class LibreSyncClient:
             raise ValueError("media_ssl is for port 7777, which media=False leaves unused")
         self.host = host
         self.media = media
+        self.module = module
+        self._room_grouped = module in GROUP_MODULES
+        # Both queries on LS10. The Surround Hub answers the bare one with an
+        # address of `00`, which sets nothing, and the grouped one with the
+        # state; the Stereo Hub HT answered the bare one with address `01`, and
+        # nobody has sent it the grouped one. Each hub gets the one it answers.
+        self._room_queries = (
+            (systemcontrol.QUERY_ROOM_CORRECTION, systemcontrol.QUERY_ROOM_CORRECTION_GROUP)
+            if self._room_grouped
+            else (systemcontrol.QUERY_ROOM_CORRECTION,)
+        )
+        self._control_connect_queries = (
+            *systemcontrol.CONNECT_QUERIES,
+            *self._room_queries[1:],
+        )
         self._confirm_timeout = confirm_timeout
         self._poll_interval = poll_interval
         self._state = DeviceState()
@@ -243,9 +265,7 @@ class LibreSyncClient:
         while True:
             try:
                 await asyncio.sleep(self._poll_interval)
-                await self._poll(
-                    self._control, systemcontrol.QUERY_POWER, systemcontrol.QUERY_ROOM_CORRECTION
-                )
+                await self._poll(self._control, systemcontrol.QUERY_POWER, *self._room_queries)
                 await self._poll(self._media, media.QUERY_PLAY_STATE)
             except Exception:
                 _LOGGER.exception("the poll loop hit an unexpected error")
@@ -271,12 +291,12 @@ class LibreSyncClient:
 
         Not the poll loop, and free to raise: a caller asked for this one.
         """
-        await self._control.send(*systemcontrol.CONNECT_QUERIES)
+        await self._control.send(*self._control_connect_queries)
         if self.media:
             await self._media.send(*media.CONNECT_QUERIES)
 
     async def _on_control_connect(self, conn: Connection) -> None:
-        await conn.send(*systemcontrol.CONNECT_QUERIES)
+        await conn.send(*self._control_connect_queries)
 
     async def _on_media_connect(self, conn: Connection) -> None:
         ip = conn.local_ip
@@ -470,6 +490,7 @@ class LibreSyncClient:
         """
         return {
             "host": "<redacted>",
+            "module": self.module,
             "connected": {"control": self._control.connected, "media": self._media.connected},
             "state": self._redacted_state(),
             "counters": {
@@ -637,10 +658,16 @@ class LibreSyncClient:
         entire wait, initial delay included, is bounded by the confirmation
         timeout.
 
+        With `module="LS10"` the set and the re-reads are the addressed form.
+        The set is the vendor app's on a Surround Hub; on a Stereo Hub HT it is
+        untested, and a hub that ignores it ends in `ConfirmationTimeout`.
+
         Raises `NotConnectedError` if port 50006 is down, `ConfirmationTimeout`
         if the re-reads never come back with the value asked for.
         """
-        await self._control.send(systemcontrol.set_room_correction(enabled))
+        await self._control.send(
+            systemcontrol.set_room_correction(enabled, grouped=self._room_grouped)
+        )
 
         def confirmed(_patch: dict[str, Any], state: DeviceState) -> bool:
             return state.room_correction is enabled
@@ -652,7 +679,7 @@ class LibreSyncClient:
                     try:
                         await self._async_expect(
                             confirmed,
-                            send=self._control.send(systemcontrol.QUERY_ROOM_CORRECTION),
+                            send=self._control.send(*self._room_queries),
                             timeout=ROOM_REREAD_INTERVAL,
                         )
                     except ConfirmationTimeout:

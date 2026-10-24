@@ -5,6 +5,8 @@
 - `LibreSyncClient(media_ssl=...)` opens port 7777 over TLS with an `ssl.SSLContext` from the caller, for the newer hubs whose 7777 is wrapped in mutual TLS. The frames inside the tunnel are the same, so registration, volume, transport and metadata work as on the original hub. Port 50006 stays plain TCP. The library bundles no certificate and builds no context. Measured on a Platin Surround Hub.
 - A TLS handshake that fails takes the same reconnect backoff as a host that is down, and is logged at warning level once per run of failures, then at debug level.
 - `media_ssl` together with `media=False` raises `ValueError`.
+- Room correction is read on the LS10 hubs too. Their `07 03` report puts an address byte before the state, `07 03 01 <state>` on the Stereo Hub HT and `07 03 01 <state> 00` on the Surround Hub, and both are decoded. A report for another address, which is how the Surround Hub answers the bare `07 02`, sets nothing.
+- `LibreSyncClient(module=...)` takes the module from LSSDP. With `LS10`, room correction is set with `07 01 01 <state>` and read with `07 02 01` as well as `07 02`, the vendor app's frames on a Surround Hub. On a Stereo Hub HT the set is untested. `diagnostics()` reports the module.
 
 ## 0.6.0b2 — 2026-10-23
 

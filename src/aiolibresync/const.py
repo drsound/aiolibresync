@@ -34,6 +34,16 @@ OP_EQ_GET_REPORT: Final = 0x05  # one opcode both ways: the data length tells th
 OP_ROOM_SET: Final = 0x01
 OP_ROOM_GET: Final = 0x02
 OP_ROOM_REPORT: Final = 0x03
+#: On the LS10 hubs room correction is addressed. The vendor app sets it with
+#: `07 01 01 <state>` and reads it with `07 02 01` (Surround Hub, 2026-10-24), and
+#: the report puts the address before the state: `07 03 01 <state>` pushed on the
+#: Stereo Hub HT, `07 03 <address> <state> 00` in reply on the Surround Hub, where
+#: the address echoes the query's. `01` is every address the app was seen to use.
+#: That it is the `groupId` of the `EQ1` group in the `08 08` reply is an
+#: inference, not a measurement.
+ROOM_GROUP: Final = 0x01
+#: The modules, as LSSDP names them, whose room correction takes that address.
+GROUP_MODULES: Final = frozenset({"LS10"})
 
 OP_PRESET_SET: Final = 0x02
 OP_PRESET_GET_REPORT: Final = 0x05

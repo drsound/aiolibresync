@@ -149,11 +149,17 @@ class FakeHub:
     """Both ports on ephemeral local sockets.
 
     With `media_ssl`, 7777 speaks TLS with that context, as on the newer hubs;
-    50006 is plain TCP either way, as it is on every hub.
+    50006 is plain TCP either way, as it is on every hub. With `room_grouped`,
+    room correction answers as the Surround Hub's does: set with `07 01 01 <x>`,
+    read with `07 02 01` as `07 03 01 <x> 00`, and a bare `07 02` answered with
+    address `00`.
     """
 
-    def __init__(self, media_ssl: ssl.SSLContext | None = None) -> None:
+    def __init__(
+        self, media_ssl: ssl.SSLContext | None = None, *, room_grouped: bool = False
+    ) -> None:
         self.media_ssl = media_ssl
+        self.room_grouped = room_grouped
         self.power = True
         self.volume = 28
         self.muted = False
@@ -294,6 +300,13 @@ class FakeHub:
                 self.current_source = data[0]
                 self.broadcast_control(self.source_list())
                 self.broadcast_control(self.av_report())
+        elif cls == CLASS_ROOM and self.room_grouped:
+            if opcode == 0x01 and len(data) == 2 and data[0] == 0x01:
+                self.room_correction = bool(data[1])
+            elif opcode == 0x02:
+                address = data[0] if data else 0x00
+                state = int(self.room_correction) if address == 0x01 else 0x00
+                self.broadcast_control(build_control(CLASS_ROOM, 0x03, bytes([address, state, 0])))
         elif cls == CLASS_ROOM:
             if opcode == 0x01 and data:
                 self.room_correction = bool(data[0])  # and announces nothing

@@ -24,6 +24,10 @@ def test_the_builders_match_the_command_reference_byte_for_byte():
     assert sc.select_source(6) == bytes.fromhex("00040b020306")
     assert sc.set_room_correction(True) == bytes.fromhex("000409070101")
     assert sc.set_room_correction(False) == bytes.fromhex("000408070100")
+    # The LS10 form, as the vendor app sends it to a Surround Hub
+    assert sc.set_room_correction(True, grouped=True) == bytes.fromhex("00050a07010101")
+    assert sc.set_room_correction(False, grouped=True) == bytes.fromhex("00050907010100")
+    assert sc.QUERY_ROOM_CORRECTION_GROUP == bytes.fromhex("00040a070201")
     assert sc.set_manual_eq(True) == bytes.fromhex("000408030401")
     assert sc.set_manual_eq(False) == bytes.fromhex("000407030400")
     assert sc.select_eq_preset(1) == bytes.fromhex("00070f080201010102")
@@ -145,6 +149,20 @@ def test_decode_dsp_reports():
     assert sc.decode(bytes.fromhex("000400030501")) == {"manual_eq": True}
     # 00 09 00 08 05 02 04 03 01 01 01 — the preset id is at offset 7
     assert sc.decode(bytes.fromhex("0009000805020403010101")) == {"eq_preset": 3}
+
+
+def test_decode_room_correction_on_the_ls10_hubs():
+    """The state is the byte after the address, whatever the width."""
+    # Stereo Hub HT, pushed on change: `07 03 01 <state>`
+    assert sc.decode(bytes.fromhex("00050007030100")) == {"room_correction": False}
+    assert sc.decode(bytes.fromhex("00050007030101")) == {"room_correction": True}
+    # Surround Hub, in reply to `07 02 01`: `07 03 01 <state> 00`
+    assert sc.decode(bytes.fromhex("0006000703010100")) == {"room_correction": True}
+    assert sc.decode(bytes.fromhex("0006000703010000")) == {"room_correction": False}
+    # Surround Hub, in reply to the bare `07 02`: address 00, meaning unknown
+    assert sc.decode(bytes.fromhex("0006000703000000")) == {}
+    # A width nobody has seen stays unclassified, for the diagnostics
+    assert sc.decode(bytes.fromhex("000700070301010000")) is None
 
 
 def test_a_query_is_recognised_but_carries_no_state():

@@ -416,6 +416,7 @@ async def test_diagnostics_describes_the_session_without_naming_the_device(hub):
     diagnostics = client.diagnostics()
     assert set(diagnostics) == {
         "host",
+        "module",
         "connected",
         "state",
         "counters",
@@ -1349,3 +1350,59 @@ async def test_a_refused_handshake_backs_off_and_warns_once(tls_hub, tls, caplog
 def test_media_ssl_with_media_false_is_refused(tls):
     with pytest.raises(ValueError, match="media_ssl"):
         LibreSyncClient("127.0.0.1", media=False, media_ssl=tls.client)
+
+
+# --- room correction on the LS10 hubs ----------------------------------------
+
+
+@pytest.fixture
+async def grouped_hub():
+    hub = FakeHub(room_grouped=True)
+    await hub.start()
+    yield hub
+    await hub.stop()
+
+
+def room_frames(hub: FakeHub, opcode: int) -> list[bytes]:
+    return [bytes(f[5:]) for f in hub.received["control"] if f[3:5] == bytes([0x07, opcode])]
+
+
+async def test_on_ls10_room_correction_is_read_and_set_in_the_addressed_form(grouped_hub):
+    """The Surround Hub's form. Its answer to the bare query, address `00`,
+    must not overwrite the state the addressed one reported."""
+    client = make_client(grouped_hub, media=False, module="LS10")
+    await client.async_connect(timeout=2.0)
+    await until(lambda: client.state.room_correction is True)
+    assert room_frames(grouped_hub, 0x02) == [b"", b"\x01"]
+
+    await client.async_set_room_correction(False)
+
+    assert grouped_hub.room_correction is False
+    assert client.state.room_correction is False
+    assert room_frames(grouped_hub, 0x01) == [b"\x01\x00"]
+    await client.async_disconnect()
+
+
+async def test_on_ls10_the_poll_loop_asks_in_both_forms(grouped_hub):
+    client = make_client(grouped_hub, media=False, module="LS10", poll_interval=0.05)
+    await client.async_connect(timeout=2.0)
+    await until(lambda: client.state.room_correction is True)
+    grouped_hub.received["control"].clear()
+
+    await asyncio.sleep(0.2)
+
+    assert set(room_frames(grouped_hub, 0x02)) == {b"", b"\x01"}
+    assert client.state.room_correction is True
+    await client.async_disconnect()
+
+
+async def test_without_a_module_room_correction_keeps_the_original_form(hub):
+    client = make_client(hub)
+    await client.async_connect(timeout=2.0)
+    await until(lambda: client.state.room_correction is True)
+    await client.async_set_room_correction(False)
+
+    assert set(room_frames(hub, 0x02)) == {b""}
+    assert room_frames(hub, 0x01) == [b"\x00"]
+    assert client.diagnostics()["module"] is None
+    await client.async_disconnect()
