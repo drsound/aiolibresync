@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2 — 2026-11-08
+
+- `async_query_lssdp(host)` asks a hub on Libre's discovery port, UDP 1800, and returns an `LssdpInfo` with the module, model, firmware and media port, or None if the hub does not answer. The module is `LS9` on the original Stereo Hub and `LS10` on the newer hubs (Stereo Hub HT, Surround Hub), whose port 7777 is wrapped in mutual TLS and cannot be opened by this version. A caller can use it to refuse those hubs before connecting. Backported from 0.6.0b1, with no other change: support for the newer hubs stays in 0.6.0.
+
 ## 0.5.1 — 2026-09-26
 
 - `async_media_play()`, `async_media_pause()` and `async_media_stop()` are confirmed by the device's acknowledgement of the command, an empty `0x0028` reply, instead of by a play state. A command that changes nothing, such as a stop on a hub that is already stopped, produces no play state, so it used to raise `ConfirmationTimeout` after the full timeout although it had been accepted. Measured on a Platin Stereo Hub: the acknowledgement arrives within about 10 ms, also when nothing changes.

@@ -187,6 +187,14 @@ DISCOVERY_TIMEOUT: Final = 5.0
 #: addresses, which would otherwise open that many connections.
 MAX_SSDP_CANDIDATES: Final = 64
 HTTP_TIMEOUT: Final = 5.0
+#: Libre's own discovery, on UDP 1800. Both hub generations answer this query
+#: with a `200 OK` that names the module (`SOURCE_LIST:LS9::…` or `LS10::…`);
+#: this hub answered 3 of 3 unicast queries in 10 ms on 2026-10-23.
+LSSDP_PORT: Final = 1800
+LSSDP_QUERY: Final = (
+    b"M-SEARCH * HTTP/1.1\r\nHOST:239.255.255.250:1800\r\nPROTOCOL:Version 1.0\r\n\r\n"
+)
+LSSDP_TIMEOUT: Final = 3.0
 PROBE_TIMEOUT: Final = 3.0
 #: A device description is ~1.5 kB. This bound is what stops an unidentified
 #: host from streaming until the machine runs out of memory.

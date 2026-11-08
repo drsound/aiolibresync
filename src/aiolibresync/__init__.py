@@ -46,6 +46,10 @@ description, such as Home Assistant's own SSDP discovery. All three are
 read-only: a search, an HTTP GET of the device description, and a TCP connect to
 50006 that sends nothing. `async_read_serial(host)` is not: it registers a
 session on 7777, so call it only for a host already believed to be a hub.
+`async_query_lssdp(host)` asks the hub on Libre's own discovery port, UDP 1800,
+and is read-only too. Its `module` is `LS9` on the original Stereo Hub and `LS10`
+on the newer hubs, whose 7777 this version cannot open: it tells them apart
+before anything touches 7777.
 
 The codec is importable on its own — `aiolibresync.frames`,
 `aiolibresync.systemcontrol`, `aiolibresync.media` — and does no I/O.
@@ -60,9 +64,11 @@ from .client import LibreSyncClient
 from .const import CONTROL_PORT, MEDIA_PORT, POLL_INTERVAL
 from .discovery import (
     DiscoveredDevice,
+    LssdpInfo,
     async_discover,
     async_probe,
     async_probe_control,
+    async_query_lssdp,
     async_read_serial,
 )
 from .exceptions import (
@@ -87,6 +93,7 @@ __all__ = [
     "DiscoveredDevice",
     "LibreSyncClient",
     "LibreSyncError",
+    "LssdpInfo",
     "NotConnectedError",
     "NowPlaying",
     "PlayState",
@@ -95,5 +102,6 @@ __all__ = [
     "async_discover",
     "async_probe",
     "async_probe_control",
+    "async_query_lssdp",
     "async_read_serial",
 ]
