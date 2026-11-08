@@ -35,6 +35,7 @@ from .const import (
     HTTP_TIMEOUT,
     LSSDP_PORT,
     LSSDP_QUERY,
+    LSSDP_RETRY_INTERVAL,
     LSSDP_TIMEOUT,
     MAX_DESCRIPTION_BYTES,
     MAX_SSDP_CANDIDATES,
@@ -371,7 +372,8 @@ def parse_lssdp(datagram: bytes) -> LssdpInfo | None:
         module=module,
         model=headers.get("cast_model") or None,
         firmware=headers.get("fwversion") or None,
-        media_port=int(port) if port.isdigit() else None,
+        # `isascii` too: `isdigit` accepts digits such as "²" that `int` refuses.
+        media_port=int(port) if port.isascii() and port.isdigit() else None,
     )
 
 
@@ -380,10 +382,14 @@ async def async_query_lssdp(
     *,
     timeout: float = LSSDP_TIMEOUT,  # noqa: ASYNC109 — see async_probe_control
 ) -> LssdpInfo | None:
-    """Ask `host` alone on Libre's discovery port. None if it does not answer.
+    """Ask `host` alone on Libre's discovery port.
 
-    The query is sent again every half second until the answer or `timeout`:
-    it is one UDP datagram. Nothing in it changes the hub.
+    None means unknown, not "the original hub": the hub did not answer within
+    `timeout`, the host has no IPv4 address, or no socket could be opened. A
+    caller that refuses a module should treat None as no decision.
+
+    The query is sent again every `LSSDP_RETRY_INTERVAL` until the answer or
+    `timeout`: it is one UDP datagram. Nothing in it changes the hub.
     """
     loop = asyncio.get_running_loop()
     try:
@@ -393,11 +399,14 @@ async def async_query_lssdp(
     except OSError:
         return None
     address = str(infos[0][4][0])
+    # A host name may resolve to several addresses, and the reply may come from
+    # any of them.
+    addresses = {str(info[4][0]) for info in infos}
     answer: asyncio.Future[LssdpInfo] = loop.create_future()
 
     class _Listener(asyncio.DatagramProtocol):
         def datagram_received(self, data: bytes, addr: tuple[str | Any, int]) -> None:
-            if str(addr[0]) != address or answer.done():
+            if str(addr[0]) not in addresses or answer.done():
                 return
             if (info := parse_lssdp(data)) is not None:
                 answer.set_result(info)
@@ -414,7 +423,9 @@ async def async_query_lssdp(
         while (remaining := deadline - loop.time()) > 0:
             transport.sendto(LSSDP_QUERY, (address, LSSDP_PORT))
             with contextlib.suppress(TimeoutError):
-                return await asyncio.wait_for(asyncio.shield(answer), min(0.5, remaining))
+                return await asyncio.wait_for(
+                    asyncio.shield(answer), min(LSSDP_RETRY_INTERVAL, remaining)
+                )
     finally:
         transport.close()
     _LOGGER.debug("%s did not answer on LSSDP", host)
