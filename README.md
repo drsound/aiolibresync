@@ -36,6 +36,8 @@ device = await async_probe("192.168.1.50")  # an address you already have
 
 Two stable identifiers are available. The **factory serial** (`await async_read_serial(host)`, or `state.serial` on a connected client) does not depend on the UPnP daemon and is the one to prefer. The **UDN** (`device.udn`) is what discovery sees. Either can be `None`: a unit may lack a valid factory serial, and the UDN is served by a UPnP daemon that occasionally stops on its own until the hub is power-cycled. See [docs/devices.md](docs/devices.md#identity).
 
+`await async_query_lssdp(host)` asks the hub on Libre's own discovery port, UDP 1800, and returns an `LssdpInfo` whose `module` is `LS9` on the original Stereo Hub and `LS10` on the newer hubs (Stereo Hub HT, Surround Hub). This version cannot drive an LS10 hub: its port 7777 does not accept a plaintext session, so `async_connect` never succeeds on one. A caller can use the module to refuse those hubs before connecting. `None` means the hub did not answer, not that it is an original one.
+
 ## Controlling it
 
 ```python

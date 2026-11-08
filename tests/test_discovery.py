@@ -8,6 +8,7 @@ else's network.
 
 import asyncio
 import contextlib
+import socket
 from pathlib import Path
 
 from fakes import FakeHTTPServer, FakeHub, FakeSSDPDevice
@@ -440,6 +441,7 @@ async def _lssdp_responder(monkeypatch, reply: bytes = LSSDP_REPLY, ignore: int 
 
 
 async def test_lssdp_is_asked_again_until_it_answers(monkeypatch):
+    monkeypatch.setattr(discovery, "LSSDP_RETRY_INTERVAL", 0.05)
     async with _lssdp_responder(monkeypatch, ignore=2) as responder:
         info = await discovery.async_query_lssdp("127.0.0.1", timeout=3.0)
 
@@ -448,5 +450,17 @@ async def test_lssdp_is_asked_again_until_it_answers(monkeypatch):
     assert responder.queries == 3
 
 
-async def test_no_lssdp_answer_is_none():
+async def test_no_lssdp_answer_is_none(monkeypatch):
+    # A port nothing listens on, rather than 1800 on the machine running this.
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        free_port = probe.getsockname()[1]
+    monkeypatch.setattr(discovery, "LSSDP_PORT", free_port)
     assert await discovery.async_query_lssdp("127.0.0.1", timeout=0.2) is None
+
+
+def test_a_port_in_other_digits_is_not_a_port():
+    info = discovery.parse_lssdp(LSSDP_REPLY.replace(b"PORT:7777", "PORT:²".encode()))
+    assert info is not None
+    assert info.media_port is None
+    assert info.module == "LS9"
