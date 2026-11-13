@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3 — 2026-11-13
+
+- `async_query_lssdp(host, timeout=...)` returns None within `timeout` also when name resolution is slow. Before, the timeout started only once the host name had been resolved and the socket opened, so a resolver that did not answer could hold the caller well past it.
+
 ## 0.5.2 — 2026-11-08
 
 - `async_query_lssdp(host)` asks a hub on Libre's discovery port, UDP 1800, and returns an `LssdpInfo` with the module, model, firmware and media port, or None if the hub does not answer. The module is `LS9` on the original Stereo Hub and `LS10` on the newer hubs (Stereo Hub HT, Surround Hub), whose port 7777 is wrapped in mutual TLS and cannot be opened by this version. A caller can use it to refuse those hubs before connecting. Backported from 0.6.0b1, with no other change: support for the newer hubs stays in 0.6.0.
