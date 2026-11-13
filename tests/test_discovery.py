@@ -574,6 +574,18 @@ async def test_no_lssdp_answer_is_none(monkeypatch):
     assert await discovery.async_query_lssdp("127.0.0.1", timeout=0.2) is None
 
 
+async def test_a_slow_resolver_does_not_outlast_the_timeout(monkeypatch):
+    loop = asyncio.get_running_loop()
+
+    async def hanging_getaddrinfo(*args, **kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(loop, "getaddrinfo", hanging_getaddrinfo)
+    started = loop.time()
+    assert await discovery.async_query_lssdp("hub.invalid", timeout=0.2) is None
+    assert loop.time() - started < 1.0
+
+
 def test_a_port_in_other_digits_is_not_a_port():
     info = discovery.parse_lssdp(LSSDP_REPLY.replace(b"PORT:7777", "PORT:²".encode()))
     assert info is not None

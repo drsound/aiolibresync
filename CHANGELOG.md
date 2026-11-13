@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `async_query_lssdp(host, timeout=...)` returns None within `timeout` also when name resolution is slow, as in 0.5.3.
+
 ## 0.6.0b3 — 2026-10-24
 
 - `LibreSyncClient(media_ssl=...)` opens port 7777 over TLS with an `ssl.SSLContext` from the caller, for the newer hubs whose 7777 is wrapped in mutual TLS. The frames inside the tunnel are the same, so registration, volume, transport and metadata work as on the original hub. Port 50006 stays plain TCP. The library bundles no certificate and builds no context. Measured on a Platin Surround Hub.

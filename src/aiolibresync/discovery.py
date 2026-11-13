@@ -389,8 +389,20 @@ async def async_query_lssdp(
     caller that refuses a module should treat None as no decision.
 
     The query is sent again every `LSSDP_RETRY_INTERVAL` until the answer or
-    `timeout`: it is one UDP datagram. Nothing in it changes the hub.
+    `timeout`: it is one UDP datagram. Nothing in it changes the hub. The
+    `timeout` covers the whole query, name resolution and socket included, so
+    a slow resolver cannot hold the caller past it.
     """
+    try:
+        async with asyncio.timeout(timeout):
+            return await _ask_lssdp(host)
+    except TimeoutError:
+        _LOGGER.debug("%s did not answer on LSSDP", host)
+        return None
+
+
+async def _ask_lssdp(host: str) -> LssdpInfo | None:
+    """Ask `host` on LSSDP until it answers; the caller bounds the wait."""
     loop = asyncio.get_running_loop()
     try:
         infos = await loop.getaddrinfo(
@@ -419,17 +431,12 @@ async def async_query_lssdp(
         _LOGGER.debug("no socket for the LSSDP query: %s", err)
         return None
     try:
-        deadline = loop.time() + timeout
-        while (remaining := deadline - loop.time()) > 0:
+        while True:
             transport.sendto(LSSDP_QUERY, (address, LSSDP_PORT))
             with contextlib.suppress(TimeoutError):
-                return await asyncio.wait_for(
-                    asyncio.shield(answer), min(LSSDP_RETRY_INTERVAL, remaining)
-                )
+                return await asyncio.wait_for(asyncio.shield(answer), LSSDP_RETRY_INTERVAL)
     finally:
         transport.close()
-    _LOGGER.debug("%s did not answer on LSSDP", host)
-    return None
 
 
 @dataclass(frozen=True, slots=True)
