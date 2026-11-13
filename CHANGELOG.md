@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `async_query_lssdp(host, timeout=...)` returns None within `timeout` also when name resolution is slow, as in 0.5.3.
+- `async_set_power(True)` turns a Stereo Hub HT on. It sends `02 0f 01` to turn on and `02 0f 00` to turn off, where it always sent `0f 00`: the HT honours the data byte, so it could only be turned off. The original Stereo Hub ignores the byte and toggles, and the state is still read first, so nothing changes there. `systemcontrol.set_power(on)` builds the frame; `toggle_power()` stays, as the off form.
 
 ## 0.6.0b3 — 2026-10-24
 

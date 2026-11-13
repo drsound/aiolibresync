@@ -77,13 +77,27 @@ CONNECT_QUERIES = (
 
 
 def toggle_power() -> bytes:
-    """The power command. It is a toggle: the firmware ignores the data byte.
+    """The power command in its "off" form, `0f 00`.
 
-    The vendor's app sends `0f 01` for "on" and turns a powered-on hub off with
-    it. Callers must read the current state first — see
+    Kept for code written against 0.5. LibreSyncClient.async_set_power sends
+    `set_power(on)` instead, which is the same frame when turning off.
+    """
+    return set_power(False)
+
+
+def set_power(on: bool) -> bytes:
+    """The power command, `0f 01` for on and `0f 00` for off.
+
+    What the data byte does depends on the hub. The original Stereo Hub (LS9)
+    ignores it and toggles: the vendor's app sends `0f 01` for "on" and turns a
+    powered-on hub off with it. The Stereo Hub HT (LS10) honours it: `0f 01`
+    turns it on, `0f 00` turns it off, and `0f 01` to a hub already on does
+    nothing — so the toggle form, `0f 00`, could never turn an HT on. Sending
+    the state asked for serves both, provided the caller reads the current
+    state first and sends nothing when it already matches — see
     LibreSyncClient.async_set_power.
     """
-    return build_control(CLASS_SYSTEM, OP_POWER_TOGGLE, b"\x00")
+    return build_control(CLASS_SYSTEM, OP_POWER_TOGGLE, bytes([int(on)]))
 
 
 def select_source(index: int) -> bytes:

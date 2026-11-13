@@ -521,10 +521,13 @@ class LibreSyncClient:
     async def async_set_power(self, on: bool) -> None:
         """Turn the hub on or off — reading its state first.
 
-        `02 0f` is a toggle and ignores its data byte. The vendor's own app
-        sends `0f 01` for "on" and therefore turns a powered-on hub off when its
-        cache is stale; this is the bug not to reproduce. If the read fails and
-        nothing is cached we raise rather than toggle blind.
+        On the original Stereo Hub `02 0f` is a toggle and ignores its data
+        byte. The vendor's own app sends `0f 01` for "on" and therefore turns a
+        powered-on hub off when its cache is stale; this is the bug not to
+        reproduce. If the read fails and nothing is cached we raise rather than
+        toggle blind. The Stereo Hub HT honours the data byte instead, so the
+        frame carries the state asked for, `0f 01` or `0f 00`, which is the
+        same toggle on the original hub.
 
         Reading first also makes this safe to retry: a call that lost its
         confirmation and is issued again re-reads and does nothing, where a
@@ -539,7 +542,7 @@ class LibreSyncClient:
             return
         await self._async_expect(
             lambda _patch, state: state.power is on,
-            send=self._control.send(systemcontrol.toggle_power()),
+            send=self._control.send(systemcontrol.set_power(on)),
         )
 
     async def _async_read_power(self) -> bool | None:

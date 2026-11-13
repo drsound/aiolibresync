@@ -21,6 +21,9 @@ def test_the_builders_match_the_command_reference_byte_for_byte():
     # had never been sent to any device and the frame that was is the evidence.
     assert sc.QUERY_AV == bytes.fromhex("0003220220")
     assert sc.toggle_power() == bytes.fromhex("000411020f00")
+    # The vendor app's two frames, captured 2026-08-15
+    assert sc.set_power(False) == bytes.fromhex("000411020f00")
+    assert sc.set_power(True) == bytes.fromhex("000412020f01")
     assert sc.select_source(6) == bytes.fromhex("00040b020306")
     assert sc.set_room_correction(True) == bytes.fromhex("000409070101")
     assert sc.set_room_correction(False) == bytes.fromhex("000408070100")
@@ -175,6 +178,7 @@ def test_a_query_is_recognised_but_carries_no_state():
     assert sc.decode(sc.QUERY_EQ_PRESET) == {}
     assert sc.decode(sc.QUERY_POWER) == {}
     assert sc.decode(sc.toggle_power()) == {}
+    assert sc.decode(sc.set_power(True)) == {}
 
 
 def test_an_unknown_frame_decodes_to_none_rather_than_a_guess():

@@ -1406,3 +1406,51 @@ async def test_without_a_module_room_correction_keeps_the_original_form(hub):
     assert room_frames(hub, 0x01) == [b"\x00"]
     assert client.diagnostics()["module"] is None
     await client.async_disconnect()
+
+
+# --- power on the Stereo Hub HT ----------------------------------------------
+
+
+@pytest.fixture
+async def ht_hub():
+    hub = FakeHub(power_honours_data=True)
+    await hub.start()
+    yield hub
+    await hub.stop()
+
+
+async def test_power_on_sends_the_state_asked_for(ht_hub):
+    """The Stereo Hub HT honours the data byte: the toggle form, `0f 00`,
+    left it off, and Home Assistant could only turn it off (issue #2)."""
+    ht_hub.power = False
+    client = make_client(ht_hub)
+    await client.async_connect()
+    await until(lambda: client.state.power is False)
+
+    await client.async_set_power(True)
+
+    toggles = [bytes(f[5:]) for f in ht_hub.received["control"] if f[3:5] == bytes.fromhex("020f")]
+    assert toggles == [b"\x01"]
+    assert ht_hub.power is True
+    assert client.state.power is True
+
+    await client.async_set_power(False)
+
+    toggles = [bytes(f[5:]) for f in ht_hub.received["control"] if f[3:5] == bytes.fromhex("020f")]
+    assert toggles == [b"\x01", b"\x00"]
+    assert ht_hub.power is False
+    await client.async_disconnect()
+
+
+async def test_power_on_still_toggles_the_original_hub_on(hub):
+    """`0f 01` toggles the original hub, so reading first keeps it correct."""
+    hub.power = False
+    client = make_client(hub)
+    await client.async_connect()
+    await until(lambda: client.state.power is False)
+
+    await client.async_set_power(True)
+
+    assert hub.power is True
+    assert client.state.power is True
+    await client.async_disconnect()

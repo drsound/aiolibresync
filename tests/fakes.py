@@ -153,13 +153,21 @@ class FakeHub:
     room correction answers as the Surround Hub's does: set with `07 01 01 <x>`,
     read with `07 02 01` as `07 03 01 <x> 00`, and a bare `07 02` answered with
     address `00`.
+
+    With `power_honours_data`, `02 0f` sets power to its data byte, as on the
+    Stereo Hub HT, instead of toggling and ignoring it, as on the original hub.
     """
 
     def __init__(
-        self, media_ssl: ssl.SSLContext | None = None, *, room_grouped: bool = False
+        self,
+        media_ssl: ssl.SSLContext | None = None,
+        *,
+        room_grouped: bool = False,
+        power_honours_data: bool = False,
     ) -> None:
         self.media_ssl = media_ssl
         self.room_grouped = room_grouped
+        self.power_honours_data = power_honours_data
         self.power = True
         self.volume = 28
         self.muted = False
@@ -288,7 +296,10 @@ class FakeHub:
             elif opcode == 0x0D:
                 self.broadcast_control(build_control(CLASS_SYSTEM, 0x0E, bytes([int(self.power)])))
             elif opcode == 0x0F:
-                self.power = not self.power  # the data byte is ignored
+                if self.power_honours_data and data:
+                    self.power = bool(data[0])  # the HT: `0f 01` on, `0f 00` off
+                else:
+                    self.power = not self.power  # the original hub ignores the byte
                 frame_out = build_control(CLASS_SYSTEM, 0x0E, bytes([int(self.power)]))
                 self.broadcast_control(frame_out)
                 self.broadcast_control(frame_out)  # sent twice, as the hub does
